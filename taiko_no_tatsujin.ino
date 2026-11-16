@@ -1,14 +1,34 @@
-const int pinoPiezo1 = A0;
-const int pinoPiezo2 = A1;
-const int pinoPiezo3 = A2;
-const int pinoPiezo4 = A4;
+#include <Keyboard.h>
 
+// -----------------------------------------------------------------------------------------------PIEZOS
+const int NUM_PADS = 4;
+const int pinosPiezo[NUM_PADS] = {A0, A1, A2, A3}; // Certifique-se de que o 4º piezo está no A3
+const char teclasPads[NUM_PADS] = {'a', 's', 'd', 'f'};
+
+// -----------------------------------------------------------------------------------------------BOTOES
+const int pinoBotao1 = 2;
+const int pinoBotao2 = 3;
+
+const char teclaBotao1 = 'q';
+const char teclaBotao2 = 'w'; 
+
+bool estadoAnteriorB1 = false;
+bool estadoAnteriorB2 = false;
+
+// -----------------------------------------------------------------------------------------------CONFIG
 // Aumente este valor se a vibração da mesa estiver disparando os pads
-const int limiteBatida = 40; 
+const int limiarMinimo = 38;
+const unsigned long tempoBloqueio = 45;   // Tempo em ms para evitar duplo disparo
+
+unsigned long ultimaBatida[NUM_PADS] = {0, 0, 0, 0};
+bool padAtivo[NUM_PADS] = {false, false, false, false};
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("--- MODO DE CALIBRACAO ---");
+  pinMode(pinoBotao1, INPUT_PULLUP);
+  pinMode(pinoBotao2, INPUT_PULLUP);
+
+  // Inicia a emulação de teclado USB
+  Keyboard.begin();
 }
 
 // Função especial que limpa o canal analógico do Arduino antes de ler
@@ -19,57 +39,44 @@ int lerPiezoLimpo(int pino) {
 }
 
 void loop() {
-  int l1 = lerPiezoLimpo(pinoPiezo1);
-  int l2 = lerPiezoLimpo(pinoPiezo2);
-  int l3 = lerPiezoLimpo(pinoPiezo3);
-  int l4 = lerPiezoLimpo(pinoPiezo4);
+  unsigned long tempoAtual = millis(); // Captura o tempo atual do relógio interno
 
-  // Se qualquer sensor ultrapassar o limite
-  if (l1 > limiteBatida || l2 > limiteBatida || l3 > limiteBatida || l4 > limiteBatida) {
-    
-    int max1 = l1, max2 = l2, max3 = l3, max4 = l4;
+  // -----------------------------------------------------------------------------------------------Leitura dos Botoes
+  bool botao1Pressionado = (digitalRead(pinoBotao1) == LOW);
+  if (botao1Pressionado != estadoAnteriorB1) {
+    if (botao1Pressionado) {
+      Keyboard.press(teclaBotao1);
+    } else {
+      Keyboard.release(teclaBotao1);
+    }
+    estadoAnteriorB1 = botao1Pressionado;
+  }
 
-    // Monitora durante 8 milissegundos para pegar o pico REAL de cada sensor
-    unsigned long inicio = millis();
-    while (millis() - inicio < 8) {
-      int v1 = lerPiezoLimpo(pinoPiezo1);
-      int v2 = lerPiezoLimpo(pinoPiezo2);
-      int v3 = lerPiezoLimpo(pinoPiezo3);
-      int v4 = lerPiezoLimpo(pinoPiezo4);
+  bool botao2Pressionado = (digitalRead(pinoBotao2) == LOW);
+  if (botao2Pressionado != estadoAnteriorB2) {
+    if (botao2Pressionado) {
+      Keyboard.press(teclaBotao2);
+    } else {
+      Keyboard.release(teclaBotao2);
+    }
+    estadoAnteriorB2 = botao2Pressionado;
+  }
 
-      if (v1 > max1) max1 = v1;
-      if (v2 > max2) max2 = v2;
-      if (v3 > max3) max3 = v3;
-      if (v4 > max4) max4 = v4;
+  // -----------------------------------------------------------------------------------------------Leitura dos Piezos
+  for (int i = 0; i < NUM_PADS; i++) {
+    int leitura = lerPiezoLimpo(pinosPiezo[i]);
+
+    // Detecta a batida e pressiona a tecla correspondente
+    if (leitura > limiarMinimo && !padAtivo[i]) {
+      Keyboard.press(teclasPads[i]);
+      padAtivo[i] = true;
+      ultimaBatida[i] = tempoAtual;
     }
 
-    // Mostra qual venceu e exibe o valor dos 4 para você calibrar
-    if (max1 >= max2 && max1 >= max3 && max1 >= max4) {
-      Serial.print("VENCEDOR: [Piezo 1]  -->  ");
-    } 
-    else if (max2 >= max1 && max2 >= max3 && max2 >= max4) {
-      Serial.print("VENCEDOR: [Piezo 2]  -->  ");
-    } 
-    else if (max3 >= max1 && max3 >= max2 && max3 >= max4) {
-      Serial.print("VENCEDOR: [Piezo 3]  -->  ");
-    } 
-    else {
-      Serial.print("VENCEDOR: [Piezo 4]  -->  ");
-    }
-
-    // Imprime os valores individuais para diagnóstico
-    Serial.print("P1: "); Serial.print(max1);
-    Serial.print(" | P2: "); Serial.print(max2);
-    Serial.print(" | P3: "); Serial.print(max3);
-    Serial.print(" | P4: "); Serial.println(max4);
-
-    // Aguarda a mesa parar de vibrar
-    delay(150);
-    while (lerPiezoLimpo(pinoPiezo1) > limiteBatida || 
-           lerPiezoLimpo(pinoPiezo2) > limiteBatida || 
-           lerPiezoLimpo(pinoPiezo3) > limiteBatida || 
-           lerPiezoLimpo(pinoPiezo4) > limiteBatida) {
-      delay(10);
+    // Solta a tecla após o tempo de bloqueio
+    if (padAtivo[i] && (tempoAtual - ultimaBatida[i] >= tempoBloqueio)) {
+      Keyboard.release(teclasPads[i]);
+      padAtivo[i] = false;
     }
   }
 }
