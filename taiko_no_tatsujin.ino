@@ -17,8 +17,8 @@ bool estadoAnteriorB2 = false;
 
 // -----------------------------------------------------------------------------------------------CONFIG
 // Aumente este valor se a vibração da mesa estiver disparando os pads
-const int limiarMinimo = 38;
-const unsigned long tempoBloqueio = 45;   // Tempo em ms para evitar duplo disparo
+const int limiarMinimo = 140;
+const unsigned long tempoBloqueio = 50;   // Tempo em ms para evitar duplo disparo
 
 unsigned long ultimaBatida[NUM_PADS] = {0, 0, 0, 0};
 bool padAtivo[NUM_PADS] = {false, false, false, false};
